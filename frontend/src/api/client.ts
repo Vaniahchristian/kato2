@@ -108,6 +108,10 @@ export function getInvoice(id: string): Promise<InvoiceDetail> {
   return request(`/api/invoices/${id}`);
 }
 
+export function deleteInvoice(id: string): Promise<{ ok: boolean }> {
+  return request(`/api/invoices/${id}`, { method: "DELETE" });
+}
+
 export async function importFile(file: File) {
   const form = new FormData();
   form.append("file", file);

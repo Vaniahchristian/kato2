@@ -93,6 +93,16 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button.btn-danger {
+  background: #dc2626;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.65rem;
+}
+
+button.btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
 .meta-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

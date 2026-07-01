@@ -230,6 +230,16 @@ def get_invoice(invoice_id: str):
     return {**inv.data, "shop_groups": result_groups, "pricing_sheet": pricing_sheet}
 
 
+@app.delete("/api/invoices/{invoice_id}")
+def delete_invoice(invoice_id: str):
+    sb = get_client()
+    existing = sb.table("invoices").select("id").eq("id", invoice_id).maybe_single().execute()
+    if not existing.data:
+        raise HTTPException(404, "Invoice not found")
+    sb.table("invoices").delete().eq("id", invoice_id).execute()
+    return {"ok": True}
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
