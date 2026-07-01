@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import PageHeader from "../components/PageHeader";
 import { InvoiceSummary, deleteInvoice, listInvoices } from "../api/client";
 
 function InvoiceCard({
@@ -17,21 +18,21 @@ function InvoiceCard({
         <Link to={`/invoices/${inv.id}`} className="invoice-card-client">
           {inv.client ?? "—"}
         </Link>
-        <span className="invoice-card-amount">
+        <span className="num invoice-card-amount">
           {inv.general_amount?.toLocaleString() ?? "—"}
         </span>
       </div>
       <dl className="invoice-card-meta">
         <div>
           <dt>Container</dt>
-          <dd>{inv.container_no ?? "—"}</dd>
+          <dd className="num">{inv.container_no ?? "—"}</dd>
         </div>
         <div>
           <dt>Loading</dt>
           <dd>{inv.loading_date ?? "—"}</dd>
         </div>
         <div className="invoice-card-meta-wide">
-          <dt>File</dt>
+          <dt>Source file</dt>
           <dd>{inv.source_filename ?? "—"}</dd>
         </div>
         <div className="invoice-card-meta-wide">
@@ -41,13 +42,23 @@ function InvoiceCard({
       </dl>
       <button
         type="button"
-        className="btn-danger btn-block"
+        className="btn btn-danger btn-block"
         disabled={deleting}
         onClick={onDelete}
       >
-        {deleting ? "Deleting…" : "Delete"}
+        {deleting ? "Removing…" : "Remove shipment"}
       </button>
     </article>
+  );
+}
+
+function TableSkeleton() {
+  return (
+    <div className="panel panel-flush">
+      <div className="skeleton skeleton-row" />
+      <div className="skeleton skeleton-row" />
+      <div className="skeleton skeleton-row" />
+    </div>
   );
 }
 
@@ -57,21 +68,17 @@ export default function InvoiceList() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  function load() {
+  useEffect(() => {
     setLoading(true);
     listInvoices()
       .then(setInvoices)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }
-
-  useEffect(() => {
-    load();
   }, []);
 
   async function handleDelete(inv: InvoiceSummary) {
-    const label = inv.client ?? inv.container_no ?? "this invoice";
-    if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
+    const label = inv.client ?? inv.container_no ?? "this shipment";
+    if (!confirm(`Remove ${label}? This cannot be undone.`)) return;
     setDeletingId(inv.id);
     setError(null);
     try {
@@ -85,47 +92,73 @@ export default function InvoiceList() {
   }
 
   return (
-    <div className="container">
-      <h1 className="page-title">Invoices</h1>
-      {loading && <p>Loading…</p>}
-      {error && <div className="error">{error}</div>}
-      {!loading && !error && invoices.length === 0 && (
-        <p>No invoices yet. <Link to="/">Import one</Link></p>
+    <>
+      <PageHeader
+        title="Shipments"
+        description="Imported manifests and container records."
+        action={
+          <Link to="/" className="btn btn-primary">
+            New import
+          </Link>
+        }
+      />
+
+      {loading && <TableSkeleton />}
+      {error && (
+        <div className="alert alert-error" role="alert">
+          <strong>Could not load shipments</strong>
+          <p>{error}</p>
+        </div>
       )}
+
+      {!loading && !error && invoices.length === 0 && (
+        <div className="empty-state">
+          <p className="empty-state-title">No shipments yet</p>
+          <p className="empty-state-text">
+            Import a manifest file to create your first container record.
+          </p>
+          <Link to="/" className="btn btn-primary">
+            Import manifest
+          </Link>
+        </div>
+      )}
+
       {invoices.length > 0 && (
         <>
-          <div className="card invoice-list-desktop table-scroll">
-            <table>
+          <div className="panel panel-flush invoice-list-desktop table-scroll">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Client</th>
                   <th>Container</th>
-                  <th>Loading Date</th>
-                  <th>Amount</th>
-                  <th>File</th>
+                  <th>Loading</th>
+                  <th className="col-num">Amount</th>
+                  <th>Source file</th>
                   <th>Imported</th>
-                  <th></th>
+                  <th className="col-actions" />
                 </tr>
               </thead>
               <tbody>
                 {invoices.map((inv) => (
                   <tr key={inv.id}>
                     <td>
-                      <Link to={`/invoices/${inv.id}`}>{inv.client ?? "—"}</Link>
+                      <Link to={`/invoices/${inv.id}`} className="row-link">
+                        {inv.client ?? "—"}
+                      </Link>
                     </td>
-                    <td>{inv.container_no ?? "—"}</td>
+                    <td className="num">{inv.container_no ?? "—"}</td>
                     <td>{inv.loading_date ?? "—"}</td>
-                    <td>{inv.general_amount?.toLocaleString() ?? "—"}</td>
-                    <td>{inv.source_filename ?? "—"}</td>
-                    <td>{new Date(inv.created_at).toLocaleString()}</td>
-                    <td>
+                    <td className="num">{inv.general_amount?.toLocaleString() ?? "—"}</td>
+                    <td className="col-file">{inv.source_filename ?? "—"}</td>
+                    <td className="col-muted">{new Date(inv.created_at).toLocaleString()}</td>
+                    <td className="col-actions">
                       <button
                         type="button"
-                        className="btn-danger"
+                        className="btn btn-danger btn-sm"
                         disabled={deletingId === inv.id}
                         onClick={() => handleDelete(inv)}
                       >
-                        {deletingId === inv.id ? "Deleting…" : "Delete"}
+                        {deletingId === inv.id ? "…" : "Remove"}
                       </button>
                     </td>
                   </tr>
@@ -146,6 +179,6 @@ export default function InvoiceList() {
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }
