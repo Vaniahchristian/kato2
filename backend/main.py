@@ -33,7 +33,51 @@ app.add_middleware(
 )
 
 
-def _insert_invoice(parsed, filename: str) -> dict:
+def _insert_pricing(invoice_id: str, pricing) -> None:
+    sb = get_client()
+    sheet_res = (
+        sb.table("pricing_sheets")
+        .insert(
+            {
+                "invoice_id": invoice_id,
+                "sheet_name": pricing.sheet_name,
+                "client": pricing.client,
+                "general_cartons": pricing.general_cartons,
+                "general_cbm": pricing.general_cbm,
+                "general_weight": pricing.general_weight,
+            }
+        )
+        .execute()
+    )
+    sheet_id = sheet_res.data[0]["id"]
+    sb.table("pricing_items").insert(
+        [
+            {
+                "pricing_sheet_id": sheet_id,
+                "shop_no": item.shop_no,
+                "description": item.description,
+                "ctns": item.ctns,
+                "qty_per_ctn": item.qty_per_ctn,
+                "unit_price": item.unit_price,
+                "unit_cbm": item.unit_cbm,
+                "yen_ugx": item.yen_ugx,
+                "exp_per_ctn": item.exp_per_ctn,
+                "value_nature": item.value_nature,
+                "value_amount": item.value_amount,
+                "value_px": item.value_px,
+                "total_exp_per_ctn": item.total_exp_per_ctn,
+                "selling_px_per_ctn": item.selling_px_per_ctn,
+                "prt_per_ctn": item.prt_per_ctn,
+                "tt_pft_per_ctn": item.tt_pft_per_ctn,
+                "tt_sales": item.tt_sales,
+                "tt_taxes": item.tt_taxes,
+            }
+            for item in pricing.items
+        ]
+    ).execute()
+
+
+def _insert_invoice(parsed, filename: str, pricing=None) -> dict:
     sb = get_client()
 
     inv_row = {
@@ -93,6 +137,9 @@ def _insert_invoice(parsed, filename: str) -> dict:
                 ]
             ).execute()
 
+    if pricing:
+        _insert_pricing(invoice_id, pricing)
+
     return {"id": invoice_id, **inv_row}
 
 
@@ -106,7 +153,7 @@ async def import_file(file: UploadFile = File(...)):
 
     data = await file.read()
     try:
-        parsed = parse_upload(data, file.filename)
+        result = parse_upload(data, file.filename)
     except ParseError as e:
         detail = {"message": str(e)}
         if e.row:
@@ -114,14 +161,16 @@ async def import_file(file: UploadFile = File(...)):
         raise HTTPException(422, detail=detail) from e
 
     try:
-        result = _insert_invoice(parsed, file.filename)
+        inv_result = _insert_invoice(result.manifest, file.filename, result.pricing)
     except Exception as e:
         raise HTTPException(500, f"Database insert failed: {e}") from e
 
+    parsed = result.manifest
     return {
-        "invoice": result,
+        "invoice": inv_result,
         "shop_group_count": len(parsed.shop_groups),
         "line_item_count": sum(len(g.line_items) for g in parsed.shop_groups),
+        "has_pricing_sheet": result.pricing is not None,
     }
 
 
@@ -160,7 +209,25 @@ def get_invoice(invoice_id: str):
         )
         result_groups.append({**g, "line_items": items.data})
 
-    return {**inv.data, "shop_groups": result_groups}
+    pricing_sheet = None
+    ps = (
+        sb.table("pricing_sheets")
+        .select("*")
+        .eq("invoice_id", invoice_id)
+        .maybe_single()
+        .execute()
+    )
+    if ps.data:
+        items = (
+            sb.table("pricing_items")
+            .select("*")
+            .eq("pricing_sheet_id", ps.data["id"])
+            .order("shop_no")
+            .execute()
+        )
+        pricing_sheet = {**ps.data, "items": items.data}
+
+    return {**inv.data, "shop_groups": result_groups, "pricing_sheet": pricing_sheet}
 
 
 @app.get("/api/health")

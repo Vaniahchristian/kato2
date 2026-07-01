@@ -33,6 +33,37 @@ export interface ShopGroup {
   line_items: LineItem[];
 }
 
+export interface PricingItem {
+  id: string;
+  shop_no: string;
+  description: string;
+  ctns: number | null;
+  qty_per_ctn: number | null;
+  unit_price: number | null;
+  unit_cbm: number | null;
+  yen_ugx: number | null;
+  exp_per_ctn: number | null;
+  value_nature: string | null;
+  value_amount: number | null;
+  value_px: number | null;
+  total_exp_per_ctn: number | null;
+  selling_px_per_ctn: number | null;
+  prt_per_ctn: number | null;
+  tt_pft_per_ctn: number | null;
+  tt_sales: number | null;
+  tt_taxes: number | null;
+}
+
+export interface PricingSheet {
+  id: string;
+  sheet_name: string;
+  client: string | null;
+  general_cartons: number | null;
+  general_cbm: number | null;
+  general_weight: number | null;
+  items: PricingItem[];
+}
+
 export interface InvoiceDetail {
   id: string;
   supplier_name: string | null;
@@ -52,6 +83,7 @@ export interface InvoiceDetail {
   balance: number | null;
   created_at: string;
   shop_groups: ShopGroup[];
+  pricing_sheet: PricingSheet | null;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

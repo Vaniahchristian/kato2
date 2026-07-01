@@ -6,7 +6,12 @@ export default function Import() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ invoice: { id: string }; shop_group_count: number; line_item_count: number } | null>(null);
+  const [result, setResult] = useState<{
+    invoice: { id: string };
+    shop_group_count: number;
+    line_item_count: number;
+    has_pricing_sheet?: boolean;
+  } | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,7 +50,8 @@ export default function Import() {
       {error && <div className="error">{error}</div>}
       {result && (
         <div className="success">
-          Imported {result.shop_group_count} shop groups, {result.line_item_count} line items.{" "}
+          Imported {result.shop_group_count} shop groups, {result.line_item_count} line items.
+          {result.has_pricing_sheet && " Pricing sheet (Sheet 2) included."}{" "}
           <Link to={`/invoices/${result.invoice.id}`}>View invoice</Link>
         </div>
       )}

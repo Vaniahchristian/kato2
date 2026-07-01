@@ -12,6 +12,43 @@ from typing import BinaryIO
 
 
 @dataclass
+class PricingLineItem:
+    shop_no: str
+    description: str
+    ctns: int | None = None
+    qty_per_ctn: int | None = None
+    unit_price: float | None = None
+    unit_cbm: float | None = None
+    yen_ugx: float | None = None
+    exp_per_ctn: float | None = None
+    value_nature: str | None = None
+    value_amount: float | None = None
+    value_px: float | None = None
+    total_exp_per_ctn: float | None = None
+    selling_px_per_ctn: float | None = None
+    prt_per_ctn: float | None = None
+    tt_pft_per_ctn: float | None = None
+    tt_sales: float | None = None
+    tt_taxes: float | None = None
+
+
+@dataclass
+class ParsedPricingSheet:
+    sheet_name: str
+    client: str | None = None
+    items: list[PricingLineItem] = field(default_factory=list)
+    general_cartons: int | None = None
+    general_cbm: float | None = None
+    general_weight: float | None = None
+
+
+@dataclass
+class ParseResult:
+    manifest: "ParsedInvoice"
+    pricing: ParsedPricingSheet | None = None
+
+
+@dataclass
 class LineItem:
     description: str
     ctns: int | None
@@ -59,6 +96,34 @@ class ParseError(Exception):
         super().__init__(message)
 
 
+def _cell_val(c) -> str:
+    if c is None:
+        return ""
+    if isinstance(c, datetime):
+        return c.strftime("%Y-%m-%d")
+    if isinstance(c, date):
+        return c.isoformat()
+    return str(c).strip()
+
+
+def _row_to_strings(row) -> list[str]:
+    return [_cell_val(c) for c in row]
+
+
+def _is_pricing_sheet(rows: list[list[str]]) -> bool:
+    for row in rows:
+        if _cell(row, 0) == "Client" and _cell(row, 5) == "UNIT CBM":
+            return True
+    return False
+
+
+def _is_manifest_sheet(rows: list[list[str]]) -> bool:
+    for row in rows:
+        if _cell(row, 0) == "Client" and "Loading Date" in _cell(row, 2):
+            return True
+    return False
+
+
 def _cell(row: list[str], idx: int) -> str:
     if idx < len(row):
         return (row[idx] or "").strip()
@@ -84,7 +149,7 @@ def _parse_date(val: str) -> date | None:
     val = val.strip()
     if not val:
         return None
-    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"):
         try:
             return datetime.strptime(val, fmt).date()
         except ValueError:
@@ -92,25 +157,109 @@ def _parse_date(val: str) -> date | None:
     return None
 
 
-def _read_rows_from_bytes(data: bytes, filename: str) -> list[list[str]]:
+def _read_xlsx_workbook(data: bytes) -> tuple[list[list[str]], ParsedPricingSheet | None]:
+    from openpyxl import load_workbook
+
+    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    manifest_rows: list[list[str]] = []
+    pricing: ParsedPricingSheet | None = None
+    for ws in wb.worksheets:
+        sheet_rows = [_row_to_strings(row) for row in ws.iter_rows(values_only=True)]
+        if _is_manifest_sheet(sheet_rows):
+            manifest_rows.extend(sheet_rows)
+        elif _is_pricing_sheet(sheet_rows):
+            pricing = parse_pricing_rows(sheet_rows, ws.title)
+    wb.close()
+    if not manifest_rows:
+        raise ParseError("No manifest sheet found (expected Client + Loading Date header)")
+    return manifest_rows, pricing
+
+
+def _read_rows_from_bytes(data: bytes, filename: str) -> tuple[list[list[str]], ParsedPricingSheet | None]:
     lower = filename.lower()
     if lower.endswith(".xlsx"):
-        from openpyxl import load_workbook
-
-        wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-        ws = wb.active
-        rows: list[list[str]] = []
-        for row in ws.iter_rows(values_only=True):
-            rows.append([str(c) if c is not None else "" for c in row])
-        wb.close()
-        return rows
+        return _read_xlsx_workbook(data)
 
     text = data.decode("utf-8-sig")
-    return list(csv.reader(io.StringIO(text)))
+    return list(csv.reader(io.StringIO(text))), None
 
 
-def _read_rows_from_path(path: Path) -> list[list[str]]:
+def _read_rows_from_path(path: Path) -> tuple[list[list[str]], ParsedPricingSheet | None]:
     return _read_rows_from_bytes(path.read_bytes(), path.name)
+
+
+def _pricing_tt_sales(row: list[str]) -> float | None:
+    return _to_float(_cell(row, 15)) or _to_float(_cell(row, 17))
+
+
+def _pricing_tt_taxes(row: list[str]) -> float | None:
+    return _to_float(_cell(row, 16)) or _to_float(_cell(row, 18))
+
+
+def parse_pricing_rows(rows: list[list[str]], sheet_name: str) -> ParsedPricingSheet:
+    sheet = ParsedPricingSheet(sheet_name=sheet_name)
+    current_shop = ""
+
+    for i, row in enumerate(rows, start=1):
+        c0 = _cell(row, 0)
+        if not c0 and not _cell(row, 1):
+            continue
+
+        if c0 and "Limited" in c0:
+            continue
+
+        if c0 == "Client":
+            sheet.client = _cell(row, 1) or sheet.client
+            continue
+
+        if c0 in ("Shop No.", "Ctns"):
+            continue
+
+        if c0 == "GENERAL CARTONS":
+            sheet.general_cartons = _to_int(_cell(row, 2))
+            sheet.general_cbm = _to_float(_cell(row, 13))
+            sheet.general_weight = _to_float(_cell(row, 16))
+            continue
+
+        if c0.upper().startswith(("DEPOSIT", "COMMISSION", "SHIP", "BALANCE")) or "￥" in c0 or "¥" in c0:
+            continue
+
+        desc = _cell(row, 1)
+        if not desc:
+            continue
+
+        if c0:
+            current_shop = c0
+
+        if not current_shop:
+            raise ParseError(f"Pricing line without shop: {desc}", row=i)
+
+        sheet.items.append(
+            PricingLineItem(
+                shop_no=current_shop,
+                description=desc,
+                ctns=_to_int(_cell(row, 2)),
+                qty_per_ctn=_to_int(_cell(row, 3)),
+                unit_price=_to_float(_cell(row, 4)),
+                unit_cbm=_to_float(_cell(row, 5)),
+                yen_ugx=_to_float(_cell(row, 6)),
+                exp_per_ctn=_to_float(_cell(row, 7)),
+                value_nature=_cell(row, 8) or None,
+                value_amount=_to_float(_cell(row, 9)),
+                value_px=_to_float(_cell(row, 10)),
+                total_exp_per_ctn=_to_float(_cell(row, 11)),
+                selling_px_per_ctn=_to_float(_cell(row, 12)),
+                prt_per_ctn=_to_float(_cell(row, 13)),
+                tt_pft_per_ctn=_to_float(_cell(row, 14)),
+                tt_sales=_pricing_tt_sales(row),
+                tt_taxes=_pricing_tt_taxes(row),
+            )
+        )
+
+    if not sheet.items:
+        raise ParseError(f"No pricing items found in {sheet_name}")
+
+    return sheet
 
 
 def _parse_footer_line(line: str, invoice: ParsedInvoice) -> None:
@@ -226,31 +375,42 @@ def parse_rows(rows: list[list[str]]) -> ParsedInvoice:
     return invoice
 
 
-def parse_file(path: str | Path) -> ParsedInvoice:
-    return parse_rows(_read_rows_from_path(Path(path)))
+def parse_file(path: str | Path) -> ParseResult:
+    rows, pricing = _read_rows_from_path(Path(path))
+    return ParseResult(manifest=parse_rows(rows), pricing=pricing)
 
 
-def parse_upload(data: bytes, filename: str) -> ParsedInvoice:
-    return parse_rows(_read_rows_from_bytes(data, filename))
+def parse_upload(data: bytes, filename: str) -> ParseResult:
+    rows, pricing = _read_rows_from_bytes(data, filename)
+    return ParseResult(manifest=parse_rows(rows), pricing=pricing)
 
 
 def _self_check() -> None:
-    sample = Path(__file__).resolve().parent.parent / "NALUYIMA 04 (1).csv"
-    if not sample.exists():
-        print(f"SKIP: sample file not found at {sample}")
-        return
+    root = Path(__file__).resolve().parent.parent
+    for name in ("NALUYIMA 04 (1).csv", "NALUYIMA 04 (1).xlsx"):
+        sample = root / name
+        if not sample.exists():
+            continue
+        inv = parse_file(sample).manifest
+        assert inv.supplier_name == "Super Will Limited", (name, inv.supplier_name)
+        assert inv.client == "NALUYIMA", (name, inv.client)
+        assert inv.container_no == "TGBU9257280", (name, inv.container_no)
+        assert inv.loading_date == date(2025, 4, 15), (name, inv.loading_date)
+        assert len(inv.shop_groups) == 7, (name, len(inv.shop_groups))
+        total_items = sum(len(g.line_items) for g in inv.shop_groups)
+        assert total_items == 54, (name, total_items)
+        assert inv.general_amount is not None and abs(inv.general_amount - 62101.4) < 0.1
+        assert inv.general_cartons == 93
+        print(f"parser self-check OK ({name})")
 
-    inv = parse_file(sample)
-    assert inv.supplier_name == "Super Will Limited", inv.supplier_name
-    assert inv.client == "NALUYIMA", inv.client
-    assert inv.container_no == "TGBU9257280", inv.container_no
-    assert inv.loading_date == date(2025, 4, 15), inv.loading_date
-    assert len(inv.shop_groups) == 7, len(inv.shop_groups)
-    total_items = sum(len(g.line_items) for g in inv.shop_groups)
-    assert total_items == 54, total_items
-    assert inv.general_amount is not None and abs(inv.general_amount - 62101.4) < 0.1
-    assert inv.general_cartons == 93
-    print("parser self-check OK")
+    xlsx = root / "NALUYIMA 04 (1).xlsx"
+    if xlsx.exists():
+        result = parse_file(xlsx)
+        assert result.pricing is not None, "expected Sheet2 pricing data"
+        assert result.pricing.sheet_name == "Sheet2"
+        assert len(result.pricing.items) == 54, len(result.pricing.items)
+        assert result.pricing.items[0].unit_cbm == 0.09
+        print("parser self-check OK (pricing sheet)")
 
 
 if __name__ == "__main__":
