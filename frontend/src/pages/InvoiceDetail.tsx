@@ -46,7 +46,8 @@ function ManifestView({ invoice }: { invoice: Invoice }) {
           <div className="shop-summary">
             Sub: {fmt(group.sub_amount)} · Deposit: {fmt(group.deposit)} · Balance: {fmt(group.balance)} · CBM: {fmt(group.cbm)}
           </div>
-          <table>
+          <div className="table-scroll table-scroll-manifest">
+            <table>
             <thead>
               <tr>
                 <th>Description</th>
@@ -74,6 +75,7 @@ function ManifestView({ invoice }: { invoice: Invoice }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       ))}
     </>
@@ -173,15 +175,17 @@ export default function InvoiceDetail() {
   return (
     <div className="container">
       <p><Link to="/invoices">← Back to list</Link></p>
-      <h1>{invoice.client} — {invoice.container_no}</h1>
+      <h1 className="page-title">{invoice.client} — {invoice.container_no}</h1>
 
       <div className="sheet-tabs">
         <Link to={`/invoices/${id}`} className={!isPricing ? "active" : ""}>
-          Sheet 1 — Manifest
+          <span className="sheet-tab-short">Sheet 1</span>
+          <span className="sheet-tab-full">Sheet 1 — Manifest</span>
         </Link>
         {hasPricing && (
           <Link to={`/invoices/${id}/pricing`} className={isPricing ? "active" : ""}>
-            Sheet 2 — Pricing
+            <span className="sheet-tab-short">Sheet 2</span>
+            <span className="sheet-tab-full">Sheet 2 — Pricing</span>
           </Link>
         )}
       </div>

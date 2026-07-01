@@ -31,11 +31,12 @@ export default function Import() {
 
   return (
     <div className="container">
-      <h1>Import Manifest</h1>
+      <h1 className="page-title">Import Manifest</h1>
       <div className="card">
         <form onSubmit={handleSubmit}>
           <p>Upload a Super Will Limited CSV or Excel manifest.</p>
           <input
+            className="file-input"
             type="file"
             accept=".csv,.xlsx"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}

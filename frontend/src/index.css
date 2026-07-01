@@ -172,9 +172,163 @@ button.btn-danger:hover:not(:disabled) {
 
 .table-scroll {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -0.25rem;
+  padding: 0 0.25rem;
 }
 
 .table-scroll table {
   min-width: 1200px;
   font-size: 0.8rem;
+}
+
+.table-scroll-manifest table {
+  min-width: 640px;
+}
+
+.page-title {
+  font-size: 1.75rem;
+  line-height: 1.25;
+  margin: 0 0 1rem;
+  word-break: break-word;
+}
+
+.invoice-list-mobile {
+  display: none;
+}
+
+.invoice-card {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.invoice-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.invoice-card-client {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.invoice-card-amount {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.invoice-card-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0 0 1rem;
+}
+
+.invoice-card-meta-wide {
+  grid-column: 1 / -1;
+}
+
+.invoice-card-meta dt {
+  font-size: 0.7rem;
+  color: #666;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.invoice-card-meta dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+button.btn-block {
+  width: 100%;
+}
+
+.file-input {
+  width: 100%;
+  max-width: 100%;
+}
+
+.sheet-tab-short {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+
+  nav {
+    padding: 0.65rem 1rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  nav strong {
+    font-size: 0.95rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .page-title {
+    font-size: 1.35rem;
+  }
+
+  .invoice-list-desktop {
+    display: none;
+  }
+
+  .invoice-list-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .meta-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .shop-summary {
+    line-height: 1.5;
+  }
+
+  .sheet-tabs {
+    flex-direction: column;
+  }
+
+  .sheet-tabs a {
+    text-align: center;
+  }
+
+  .sheet-tab-short {
+    display: inline;
+  }
+
+  .sheet-tab-full {
+    display: none;
+  }
+
+  th,
+  td {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .invoice-card-meta {
+    grid-template-columns: 1fr;
+  }
 }
