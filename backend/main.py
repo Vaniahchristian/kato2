@@ -190,8 +190,8 @@ def list_invoices():
 def get_invoice(invoice_id: str):
     sb = get_client()
 
-    inv = sb.table("invoices").select("*").eq("id", invoice_id).maybe_single().execute()
-    if not inv.data:
+    inv_res = sb.table("invoices").select("*").eq("id", invoice_id).maybe_single().execute()
+    if not inv_res or not inv_res.data:
         raise HTTPException(404, "Invoice not found")
 
     groups = (
@@ -214,27 +214,28 @@ def get_invoice(invoice_id: str):
         sb.table("pricing_sheets")
         .select("*")
         .eq("invoice_id", invoice_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
     if ps.data:
+        sheet = ps.data[0]
         items = (
             sb.table("pricing_items")
             .select("*")
-            .eq("pricing_sheet_id", ps.data["id"])
+            .eq("pricing_sheet_id", sheet["id"])
             .order("shop_no")
             .execute()
         )
-        pricing_sheet = {**ps.data, "items": items.data}
+        pricing_sheet = {**sheet, "items": items.data}
 
-    return {**inv.data, "shop_groups": result_groups, "pricing_sheet": pricing_sheet}
+    return {**inv_res.data, "shop_groups": result_groups, "pricing_sheet": pricing_sheet}
 
 
 @app.delete("/api/invoices/{invoice_id}")
 def delete_invoice(invoice_id: str):
     sb = get_client()
     existing = sb.table("invoices").select("id").eq("id", invoice_id).maybe_single().execute()
-    if not existing.data:
+    if not existing or not existing.data:
         raise HTTPException(404, "Invoice not found")
     sb.table("invoices").delete().eq("id", invoice_id).execute()
     return {"ok": True}
