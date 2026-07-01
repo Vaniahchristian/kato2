@@ -12,9 +12,21 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 app = FastAPI(title="Invoice Import API")
 
+
+def _cors_origins() -> list[str]:
+    origins = {
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://kato2.vercel.app",
+    }
+    if url := os.environ.get("FRONTEND_URL"):
+        origins.add(url.rstrip("/"))
+    return list(origins)
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
